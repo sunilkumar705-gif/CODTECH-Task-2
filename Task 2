@@ -1,0 +1,142 @@
+                     // Digital Lock System//
+
+                                             // Module Program//
+
+module DigitalLock (
+    input wire clk,          // Clock signal
+    input wire rst_n,       // Active low reset
+    input wire [3:0] code_in, // Input code
+    input wire enter,       // Enter button
+    output reg locked,      // Lock status
+    output reg unlock       // Unlock status
+);
+    // Define states
+    typedef enum reg [1:0] {
+        IDLE = 2'b00,
+        WAIT_FOR_CODE = 2'b01,
+        UNLOCKED = 2'b10,
+        LOCKED = 2'b11
+    } state_t;
+
+    state_t current_state, next_state;
+
+    // Correct code (for demonstration, let's assume the code is 4'b1010)
+    localparam CORRECT_CODE = 4'b1010;
+
+    // State transition logic
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n)
+            current_state <= IDLE; // Reset to IDLE state
+        else
+            current_state <= next_state;
+    end
+
+    // Next state logic
+    always @(*) begin
+        case (current_state)
+            IDLE: begin
+                locked = 1;
+                unlock = 0;
+                if (enter)
+                    next_state = WAIT_FOR_CODE;
+                else
+                    next_state = IDLE;
+            end
+            WAIT_FOR_CODE: begin
+                locked = 1;
+                unlock = 0;
+                if (code_in == CORRECT_CODE)
+                    next_state = UNLOCKED;
+                else if (enter)
+                    next_state = LOCKED;
+                else
+                    next_state = WAIT_FOR_CODE;
+            end
+            UNLOCKED: begin
+                locked = 0;
+                unlock = 1;
+                if (enter)
+                    next_state = LOCKED; // Return to LOCKED state on enter
+                else
+                    next_state = UNLOCKED;
+            end
+            LOCKED: begin
+                locked = 1;
+                unlock = 0;
+                next_state = IDLE; // Reset to IDLE state after entering
+            end
+            default: begin
+                locked = 1;
+                unlock = 0;
+                next_state = IDLE;
+            end
+        endcase
+    end
+endmodule
+
+
+                                                 // Testbench Program //
+
+`timescale 1ns / 1ps
+
+module tb_DigitalLock();
+    reg clk;
+    reg rst_n;
+    reg [3:0] code_in;
+    reg enter;
+    wire locked;
+    wire unlock;
+
+    // Instantiate the Digital Lock System
+    DigitalLock uut (
+        .clk(clk),
+        .rst_n(rst_n),
+        .code_in(code_in),
+        .enter(enter),
+        .locked(locked),
+        .unlock(unlock)
+    );
+
+    // Generate clock
+    always #5 clk = ~clk; // 10ns clock period
+
+    initial begin
+        // Open VCD file for waveform dumping
+        $dumpfile("tb_DigitalLock.vcd");
+        $dumpvars(0, tb_DigitalLock);
+
+        // Initialize signals
+        clk = 0;
+        rst_n = 0;
+        code_in = 4'b0000; // Initial input
+        enter = 0;
+
+        // Reset the system
+        #10 rst_n = 1;
+
+        // Test sequence
+        // Enter incorrect code
+        #10 code_in = 4'b0000; enter = 1; // Attempt to enter
+        #10 enter = 0; // Deassert enter
+
+        // Wait and check lock status
+        #20;
+
+        // Enter correct code
+        #10 code_in = 4'b1010; enter = 1; // Correct code
+        #10 enter = 0; // Deassert enter
+
+        // Wait and check unlock status
+        #20;
+
+        // Lock again
+        #10 enter = 1; // Lock the system again
+        #10 enter = 0; // Deassert enter
+
+        // Check final states
+        #20;
+
+        // End simulation
+        $finish;
+    end
+endmodule
